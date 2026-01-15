@@ -3,7 +3,7 @@ import AVFoundation
 import React
 
 /// Native iOS Audio Module for recording, playback, and TTS
-/// Records in WAV format at 16kHz mono - optimal for Whisper STT
+/// Uses AVFoundation directly - compatible with New Architecture
 @objc(NativeAudioModule)
 class NativeAudioModule: NSObject, AVSpeechSynthesizerDelegate {
 
@@ -55,7 +55,7 @@ class NativeAudioModule: NSObject, AVSpeechSynthesizerDelegate {
     let timestamp = Int(Date().timeIntervalSince1970 * 1000)
     recordingURL = documentsPath.appendingPathComponent("recording_\(timestamp).wav")
 
-    // Recording settings for WAV format at 16kHz mono (optimal for STT/Whisper)
+    // Recording settings for WAV format at 16kHz mono (optimal for STT)
     let settings: [String: Any] = [
       AVFormatIDKey: Int(kAudioFormatLinearPCM),
       AVSampleRateKey: 16000.0,
@@ -90,23 +90,27 @@ class NativeAudioModule: NSObject, AVSpeechSynthesizerDelegate {
     recorder.stop()
     isRecording = false
 
-    // Get file info
+    // Read the file and return as base64 to avoid RNFS sandbox issues
     if FileManager.default.fileExists(atPath: url.path) {
       do {
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        let fileSize = attributes[.size] as? Int64 ?? 0
-        print("[NativeAudioModule] Recording stopped: \(url.path), size: \(fileSize) bytes")
+        let audioData = try Data(contentsOf: url)
+        let base64String = audioData.base64EncodedString()
+        let fileSize = audioData.count
+        
+        print("[NativeAudioModule] Recording stopped: \(url.path), size: \(fileSize) bytes, base64 length: \(base64String.count)")
+        
+        // Clean up the file since we're returning the data directly
+        try? FileManager.default.removeItem(at: url)
+        
         resolve([
           "status": "stopped",
           "path": url.path,
-          "fileSize": fileSize
+          "fileSize": fileSize,
+          "audioBase64": base64String
         ])
       } catch {
-        resolve([
-          "status": "stopped",
-          "path": url.path,
-          "fileSize": 0
-        ])
+        print("[NativeAudioModule] Error reading audio file: \(error)")
+        reject("READ_ERROR", "Failed to read audio file: \(error.localizedDescription)", error)
       }
     } else {
       reject("FILE_NOT_FOUND", "Recording file not found", nil)
@@ -235,6 +239,7 @@ class NativeAudioModule: NSObject, AVSpeechSynthesizerDelegate {
     let utterance = AVSpeechUtterance(string: text)
 
     // Rate: AVSpeechUtterance rate is 0.0 to 1.0, with 0.5 being normal
+    // User rate is typically 0.5 to 2.0, so we map it
     let mappedRate = min(1.0, max(0.0, (rate - 0.5) / 1.5 * 0.5 + 0.5))
     utterance.rate = Float(mappedRate)
 

@@ -6,10 +6,9 @@ import {
   ScrollView,
   StyleSheet,
   NativeModules,
-  Platform,
+  Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import RNFS from 'react-native-fs';
 import { RunAnywhere } from '@runanywhere/core';
 import { AppColors } from '../theme';
 import { useModelService } from '../services/ModelService';
@@ -26,8 +25,8 @@ export const SpeechToTextScreen: React.FC = () => {
   const [transcriptionHistory, setTranscriptionHistory] = useState<string[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const audioPathRef = useRef<string | null>(null);
-  const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingPathRef = useRef<string | null>(null);
+  const audioLevelIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartRef = useRef<number>(0);
 
   // Cleanup on unmount
@@ -47,14 +46,14 @@ export const SpeechToTextScreen: React.FC = () => {
       // Check if native module is available
       if (!NativeAudioModule) {
         console.error('[STT] NativeAudioModule not available');
-        setTranscription('Error: Native audio module not available. Please rebuild the app.');
+        Alert.alert('Error', 'Native audio module not available. Please rebuild the app.');
         return;
       }
 
-      console.log('[STT] Starting recording with native module...');
+      console.warn('[STT] Starting native recording...');
       const result = await NativeAudioModule.startRecording();
       
-      audioPathRef.current = result.path;
+      recordingPathRef.current = result.path;
       recordingStartRef.current = Date.now();
       setIsRecording(true);
       setTranscription('');
@@ -71,14 +70,14 @@ export const SpeechToTextScreen: React.FC = () => {
         }
       }, 100);
 
-      console.log('[STT] Recording started at:', result.path);
+      console.warn('[STT] Recording started at:', result.path);
     } catch (error) {
       console.error('[STT] Recording error:', error);
-      setTranscription(`Error starting recording: ${error}`);
+      Alert.alert('Recording Error', `Failed to start recording: ${error}`);
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecordingAndTranscribe = async () => {
     try {
       // Clear audio level polling
       if (audioLevelIntervalRef.current) {
@@ -90,47 +89,53 @@ export const SpeechToTextScreen: React.FC = () => {
         throw new Error('NativeAudioModule not available');
       }
 
+      console.warn('[STT] Stopping recording...');
       const result = await NativeAudioModule.stopRecording();
       setIsRecording(false);
       setAudioLevel(0);
       setIsTranscribing(true);
 
-      const audioPath = result.path;
-      console.log('[STT] Recording stopped, file at:', audioPath, 'size:', result.fileSize);
-
-      if (!audioPath) {
-        throw new Error('Recording path not found');
+      // Get the base64 audio data directly from native module (bypasses RNFS sandbox issues)
+      const audioBase64 = result.audioBase64;
+      if (!audioBase64) {
+        throw new Error('No audio data received from recording');
       }
 
-      // Verify file exists
-      const exists = await RNFS.exists(audioPath);
-      if (!exists) {
-        throw new Error('Recording file not found');
+      console.warn('[STT] Recording stopped, audio base64 length:', audioBase64.length, 'file size:', result.fileSize);
+
+      if (result.fileSize < 1000) {
+        throw new Error('Recording too short - please speak longer');
       }
 
-      // Transcribe the WAV file
-      console.log('[STT] Transcribing file...');
-      const transcribeResult = await RunAnywhere.transcribeFile(audioPath, {
+      // Check if STT model is loaded
+      const isModelLoaded = await RunAnywhere.isSTTModelLoaded();
+      if (!isModelLoaded) {
+        throw new Error('STT model not loaded. Please download and load the model first.');
+      }
+
+      // Transcribe using base64 audio data directly from native module
+      console.warn('[STT] Starting transcription...');
+      const transcribeResult = await RunAnywhere.transcribe(audioBase64, {
+        sampleRate: 16000,
         language: 'en',
       });
 
-      const finalText = transcribeResult.text || '(No speech detected)';
-      setTranscription(finalText);
+      console.warn('[STT] Transcription result:', transcribeResult);
 
       if (transcribeResult.text) {
+        setTranscription(transcribeResult.text);
         setTranscriptionHistory(prev => [transcribeResult.text, ...prev]);
+      } else {
+        setTranscription('(No speech detected)');
       }
 
-      console.log(`[STT] Transcription: "${finalText}", confidence: ${transcribeResult.confidence}`);
-
-      // Clean up the audio file
-      await RNFS.unlink(audioPath).catch(() => {});
-      audioPathRef.current = null;
-
+      recordingPathRef.current = null;
       setIsTranscribing(false);
     } catch (error) {
       console.error('[STT] Transcription error:', error);
-      setTranscription(`Error: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setTranscription(`Error: ${errorMessage}`);
+      Alert.alert('Transcription Error', errorMessage);
       setIsTranscribing(false);
     }
   };
@@ -231,7 +236,7 @@ export const SpeechToTextScreen: React.FC = () => {
       {/* Record Button */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          onPress={isRecording ? stopRecording : startRecording}
+          onPress={isRecording ? stopRecordingAndTranscribe : startRecording}
           disabled={isTranscribing}
           activeOpacity={0.8}
         >
