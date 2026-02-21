@@ -1,7 +1,7 @@
 {
-  "name": "runanywhere-starter-app",
+  "name": "latent",
   "version": "1.0.0",
-  "description": "A comprehensive starter app demonstrating RunAnywhere SDK capabilities - on-device AI for React Native",
+  "description": "Latent - Offline Meeting Intelligence. Privacy-first negotiation assistant powered by on-device AI.",
   "main": "index.js",
   "scripts": {
     "android": "react-native run-android",
@@ -11,6 +11,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/native": "^7.1.24",
     "@react-navigation/stack": "^7.6.16",
     "@runanywhere/core": "^0.18.1",

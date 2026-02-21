@@ -1,8 +1,12 @@
+import { NegotiationMode } from '../types/session';
+
 export type RootStackParamList = {
   Home: undefined;
-  Chat: undefined;
-  ToolCalling: undefined;
-  SpeechToText: undefined;
-  TextToSpeech: undefined;
-  VoicePipeline: undefined;
+  LiveSession: {
+    mode: NegotiationMode;
+  };
+  Insights: {
+    sessionId: string;
+  };
+  Settings: undefined;
 };

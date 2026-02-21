@@ -8,14 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RunAnywhere, SDKEnvironment } from '@runanywhere/core';
 import { ModelServiceProvider, registerDefaultModels } from './services/ModelService';
 import { AppColors } from './theme';
-import {
-  HomeScreen,
-  ChatScreen,
-  ToolCallingScreen,
-  SpeechToTextScreen,
-  TextToSpeechScreen,
-  VoicePipelineScreen,
-} from './screens';
+import { HomeScreen, LiveSessionScreen, InsightsScreen, SettingsScreen } from './screens';
 import { RootStackParamList } from './navigation/types';
 
 // Using JS-based stack navigator instead of native-stack
@@ -35,7 +28,7 @@ const App: React.FC = () => {
         // Register backends (per docs: https://docs.runanywhere.ai/react-native/quick-start)
         const { LlamaCPP } = await import('@runanywhere/llamacpp');
         const { ONNX } = await import('@runanywhere/onnx');
-        
+
         LlamaCPP.register();
         ONNX.register();
 
@@ -75,35 +68,21 @@ const App: React.FC = () => {
               ...TransitionPresets.SlideFromRightIOS,
             }}
           >
+            <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
             <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{ headerShown: false }}
+              name="LiveSession"
+              component={LiveSessionScreen}
+              options={{ title: 'Live Session' }}
             />
             <Stack.Screen
-              name="Chat"
-              component={ChatScreen}
-              options={{ title: 'Chat' }}
+              name="Insights"
+              component={InsightsScreen}
+              options={{ title: 'Session Insights' }}
             />
             <Stack.Screen
-              name="ToolCalling"
-              component={ToolCallingScreen}
-              options={{ title: 'Tool Calling' }}
-            />
-            <Stack.Screen
-              name="SpeechToText"
-              component={SpeechToTextScreen}
-              options={{ title: 'Speech to Text' }}
-            />
-            <Stack.Screen
-              name="TextToSpeech"
-              component={TextToSpeechScreen}
-              options={{ title: 'Text to Speech' }}
-            />
-            <Stack.Screen
-              name="VoicePipeline"
-              component={VoicePipelineScreen}
-              options={{ title: 'Voice Pipeline' }}
+              name="Settings"
+              component={SettingsScreen}
+              options={{ title: 'Settings' }}
             />
           </Stack.Navigator>
         </NavigationContainer>
