@@ -31,6 +31,11 @@ export const classifyIntent = (
   mode: NegotiationMode,
   sensitivityMultiplier: number = 1.0
 ): DetectedPattern[] => {
+  console.log('[IntentClassifier] 🔍 classifyIntent() called');
+  console.log('[IntentClassifier] 📝 Text:', text);
+  console.log('[IntentClassifier] 🎯 Mode:', mode);
+  console.log('[IntentClassifier] 📊 Sensitivity:', sensitivityMultiplier);
+
   const detectedPatterns: DetectedPattern[] = [];
   const lowerText = text.toLowerCase();
   const timestamp = Date.now();
@@ -41,6 +46,10 @@ export const classifyIntent = (
     const matchResult = matchPattern(lowerText, patternDef);
 
     if (matchResult.keywordMatches > 0) {
+      console.log('[IntentClassifier] 🎯 Pattern matched:', pattern);
+      console.log('[IntentClassifier] 🔑 Keyword matches:', matchResult.keywordMatches);
+      console.log('[IntentClassifier] 📌 Context matches:', matchResult.contextMatches);
+
       // Get mode-specific weight
       const modeConfig = getModeConfig(mode);
       const patternWeight = modeConfig.patternWeights[pattern];
@@ -53,12 +62,21 @@ export const classifyIntent = (
         sensitivityMultiplier,
       });
 
+      console.log('[IntentClassifier] 📊 Confidence score:', confidenceScore);
+
       // Only include if confidence meets minimum threshold (50)
       if (confidenceScore >= 50) {
         const severity = determineSeverity(confidenceScore);
 
         // Pick random suggestion from pattern definition
         const suggestion = pickRandomSuggestion(patternDef.suggestions);
+
+        console.log('[IntentClassifier] ✅ Pattern added:', {
+          pattern,
+          confidence: confidenceScore,
+          severity,
+          suggestion,
+        });
 
         detectedPatterns.push({
           id: `${pattern}_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
@@ -70,9 +88,17 @@ export const classifyIntent = (
           transcript: text,
           context: matchResult.matchedText,
         });
+      } else {
+        console.log(
+          '[IntentClassifier] ❌ Pattern rejected (confidence too low):',
+          confidenceScore
+        );
       }
     }
   }
+
+  console.log('[IntentClassifier] ✅ Classification complete');
+  console.log('[IntentClassifier] 🎯 Total patterns detected:', detectedPatterns.length);
 
   // Sort by confidence score (highest first)
   return detectedPatterns.sort((a, b) => b.confidenceScore - a.confidenceScore);

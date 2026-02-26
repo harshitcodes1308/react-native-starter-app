@@ -23,6 +23,17 @@ export interface SessionUpdateCallback {
   (state: LiveSessionState): void;
 }
 
+const DEBUG_TRANSCRIPTS = [
+  'We usually offer around 6 LPA for this position.',
+  'I need to check with my manager before making any decision.',
+  'Your product looks interesting, but the price is too high.',
+  'Let me think about it and get back to you next week.',
+  "This looks great! I'm really excited about moving forward.",
+  'We have budget constraints this quarter.',
+  'I have authority to approve deals up to 50K.',
+  'Can you send me more information via email?',
+];
+
 /**
  * SessionEngine - Orchestrates the entire session lifecycle
  * Manages recording, transcription, analysis, and auto-save
@@ -36,6 +47,9 @@ export class SessionEngine {
   private updateCallback: SessionUpdateCallback | null = null;
   private autoSaveInterval: NodeJS.Timeout | null = null;
   private autoSaveIntervalMs: number = 45000; // 45 seconds as requested
+  private debugTranscriptIndex: number = 0;
+  private debugInterval: NodeJS.Timeout | null = null;
+  private debugMode: boolean = false;
 
   constructor() {
     this.speechService = new SpeechService();
@@ -79,15 +93,25 @@ export class SessionEngine {
       this.analyzer.setMode(mode);
       this.analyzer.setSensitivity(settings.patternSensitivity);
 
-      // Start speech service
-      const started = await this.speechService.startRecording(
-        this.onTranscription.bind(this),
-        this.onAudioLevel.bind(this)
-      );
+      this.debugMode = settings.debugMode || false;
 
-      if (!started) {
-        console.error('[SessionEngine] Failed to start speech service');
-        return false;
+      if (this.debugMode) {
+        console.log('[SessionEngine] 🐛 DEBUG MODE ENABLED - Using hardcoded transcripts');
+        console.log('[SessionEngine] 🐛 This bypasses STT and injects test data every 7 seconds');
+
+        // Start debug transcript injection
+        this.startDebugTranscripts();
+      } else {
+        // Start speech service
+        const started = await this.speechService.startRecording(
+          this.onTranscription.bind(this),
+          this.onAudioLevel.bind(this)
+        );
+
+        if (!started) {
+          console.error('[SessionEngine] Failed to start speech service');
+          return false;
+        }
       }
 
       // Start continuous analysis (every 3 seconds)
@@ -125,7 +149,11 @@ export class SessionEngine {
       // Stop services
       this.analyzer.stopContinuousAnalysis();
       this.stopAutoSave();
-      await this.speechService.stopRecording();
+      this.stopDebugTranscripts();
+
+      if (!this.debugMode) {
+        await this.speechService.stopRecording();
+      }
 
       this.state.isRecording = false;
       this.state.duration = Date.now() - this.state.startTime;
@@ -190,7 +218,11 @@ export class SessionEngine {
 
     this.analyzer.stopContinuousAnalysis();
     this.stopAutoSave();
-    await this.speechService.cancelRecording();
+    this.stopDebugTranscripts();
+
+    if (!this.debugMode) {
+      await this.speechService.cancelRecording();
+    }
 
     this.state = this.createInitialState();
     this.sessionId = null;
@@ -201,7 +233,12 @@ export class SessionEngine {
    * Handle transcription from speech service
    */
   private onTranscription(text: string, timestamp: number): void {
+    console.log('[SessionEngine] 📥 onTranscription() called');
+    console.log('[SessionEngine] 📝 Text:', text);
+    console.log('[SessionEngine] ⏰ Timestamp:', timestamp);
+
     if (!text.trim()) {
+      console.log('[SessionEngine] ⚠️ Empty text, skipping');
       return;
     }
 
@@ -214,8 +251,12 @@ export class SessionEngine {
     this.state.transcript.push(chunk);
     this.state.duration = Date.now() - this.state.startTime;
 
-    console.log('[SessionEngine] Transcription:', text);
+    console.log('[SessionEngine] ✅ Transcript chunk added');
+    console.log('[SessionEngine] 📊 Total chunks:', this.state.transcript.length);
+    console.log('[SessionEngine] ⏱️ Duration:', this.state.duration, 'ms');
+
     this.notifyUpdate();
+    console.log('[SessionEngine] 🔔 State update notification sent');
   }
 
   /**
@@ -230,12 +271,24 @@ export class SessionEngine {
    * Handle analysis results
    */
   private onAnalysisResult(result: any): void {
+    console.log('[SessionEngine] 🧠 onAnalysisResult() called');
+    console.log('[SessionEngine] 🎯 Detected patterns count:', result.detectedPatterns.length);
+    console.log('[SessionEngine] 📊 Focus score:', result.focusScore);
+
     // Add new patterns (avoid duplicates)
     const existingPatternIds = new Set(this.state.detectedPatterns.map((p) => p.id));
+    let newPatternsCount = 0;
 
     result.detectedPatterns.forEach((pattern: DetectedPattern) => {
       if (!existingPatternIds.has(pattern.id)) {
         this.state.detectedPatterns.push(pattern);
+        newPatternsCount++;
+
+        console.log('[SessionEngine] 🆕 New pattern detected:', {
+          pattern: pattern.pattern,
+          confidence: pattern.confidenceScore,
+          suggestion: pattern.suggestion,
+        });
 
         // Mark related transcript chunks
         this.state.transcript.forEach((chunk) => {
@@ -249,10 +302,9 @@ export class SessionEngine {
     // Update focus score
     this.state.currentFocusScore = result.focusScore;
 
-    console.log('[SessionEngine] Analysis complete:', {
-      patterns: result.detectedPatterns.length,
-      focusScore: result.focusScore,
-    });
+    console.log('[SessionEngine] ✅ Analysis complete');
+    console.log('[SessionEngine] 🆕 New patterns added:', newPatternsCount);
+    console.log('[SessionEngine] 📊 Total patterns:', this.state.detectedPatterns.length);
 
     this.notifyUpdate();
   }
@@ -334,7 +386,10 @@ export class SessionEngine {
    */
   private notifyUpdate(): void {
     if (this.updateCallback) {
+      console.log('[SessionEngine] 🔔 Notifying state update to UI');
       this.updateCallback({ ...this.state });
+    } else {
+      console.log('[SessionEngine] ⚠️ No update callback registered');
     }
   }
 
@@ -355,5 +410,49 @@ export class SessionEngine {
     this.analyzer.cleanup();
     this.speechService.cleanup();
     this.stopAutoSave();
+    this.stopDebugTranscripts();
+  }
+
+  /**
+   * Start debug transcript injection (bypasses STT)
+   */
+  private startDebugTranscripts(): void {
+    console.log('[SessionEngine] 🐛 Starting debug transcript injection');
+    this.debugTranscriptIndex = 0;
+
+    // Inject first transcript immediately
+    this.injectDebugTranscript();
+
+    // Inject new transcript every 7 seconds
+    this.debugInterval = setInterval(() => {
+      this.injectDebugTranscript();
+    }, 7000);
+  }
+
+  /**
+   * Stop debug transcript injection
+   */
+  private stopDebugTranscripts(): void {
+    if (this.debugInterval) {
+      clearInterval(this.debugInterval);
+      this.debugInterval = null;
+      console.log('[SessionEngine] 🐛 Debug transcript injection stopped');
+    }
+  }
+
+  /**
+   * Inject a single debug transcript
+   */
+  private injectDebugTranscript(): void {
+    if (this.debugTranscriptIndex >= DEBUG_TRANSCRIPTS.length) {
+      console.log('[SessionEngine] 🐛 All debug transcripts injected, cycling back to start');
+      this.debugTranscriptIndex = 0;
+    }
+
+    const text = DEBUG_TRANSCRIPTS[this.debugTranscriptIndex];
+    console.log('[SessionEngine] 🐛 Injecting debug transcript:', text);
+
+    this.onTranscription(text, Date.now());
+    this.debugTranscriptIndex++;
   }
 }

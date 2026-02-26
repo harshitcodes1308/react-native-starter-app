@@ -10,6 +10,24 @@ import { RunAnywhere } from '@runanywhere/core';
 
 const { NativeAudioModule } = NativeModules;
 
+// ============================================================================
+// STT MODEL STATUS HELPERS
+// NOTE: Model loading is handled by ModelService.downloadAndLoadSTT() in App.tsx
+// ============================================================================
+
+/**
+ * Check if STT model is ready (async check with RunAnywhere SDK)
+ */
+export const checkSTTModelReady = async (): Promise<boolean> => {
+  try {
+    const modelInfo = await RunAnywhere.getModelInfo('sherpa-onnx-whisper-tiny.en');
+    return !!modelInfo?.localPath;
+  } catch (error) {
+    console.log('[SpeechService] STT model check failed:', error);
+    return false;
+  }
+};
+
 export interface TranscriptionCallback {
   (text: string, timestamp: number): void;
 }
@@ -36,10 +54,13 @@ export class SpeechService {
    */
   async requestPermission(): Promise<boolean> {
     if (Platform.OS !== 'android') {
+      console.log('[SpeechService] ✅ Platform is iOS, permission auto-granted');
       return true;
     }
 
     try {
+      console.log('[SpeechService] 🎤 Requesting RECORD_AUDIO permission...');
+
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         {
@@ -51,9 +72,12 @@ export class SpeechService {
         }
       );
 
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+      const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
+      console.log(`[SpeechService] ${isGranted ? '✅' : '❌'} Permission ${granted}`);
+
+      return isGranted;
     } catch (error) {
-      console.error('[SpeechService] Permission error:', error);
+      console.error('[SpeechService] ❌ Permission error:', error);
       return false;
     }
   }
@@ -66,21 +90,25 @@ export class SpeechService {
     onAudioLevel?: AudioLevelCallback
   ): Promise<boolean> {
     try {
+      console.log('[SpeechService] 🎙️ startRecording() called');
+
       // Check native module
       if (!NativeAudioModule) {
-        console.error('[SpeechService] NativeAudioModule not available');
+        console.error('[SpeechService] ❌ NativeAudioModule not available');
         return false;
       }
+      console.log('[SpeechService] ✅ NativeAudioModule available');
 
       // Request permission
       const hasPermission = await this.requestPermission();
       if (!hasPermission) {
-        console.error('[SpeechService] Microphone permission denied');
+        console.error('[SpeechService] ❌ Microphone permission denied');
         return false;
       }
+      console.log('[SpeechService] ✅ Microphone permission granted');
 
       // Start native recording
-      console.log('[SpeechService] Starting recording...');
+      console.log('[SpeechService] 📼 Starting native recording...');
       const result = await NativeAudioModule.startRecording();
 
       this.isRecording = true;
@@ -89,18 +117,23 @@ export class SpeechService {
       this.transcriptionCallback = onTranscription;
       this.audioLevelCallback = onAudioLevel || null;
 
+      console.log('[SpeechService] ✅ Recording started');
+      console.log('[SpeechService] 📁 Recording path:', result.path);
+      console.log('[SpeechService] ⏰ Recording start time:', this.recordingStartTime);
+
       // Start audio level polling
       if (onAudioLevel) {
         this.startAudioLevelPolling();
+        console.log('[SpeechService] 🎚️ Audio level polling started');
       }
 
       // Start continuous transcription (every 5 seconds)
       this.startContinuousTranscription();
+      console.log('[SpeechService] 🔄 Continuous transcription started');
 
-      console.log('[SpeechService] Recording started at:', result.path);
       return true;
     } catch (error) {
-      console.error('[SpeechService] Error starting recording:', error);
+      console.error('[SpeechService] ❌ Error starting recording:', error);
       this.isRecording = false;
       return false;
     }
@@ -185,20 +218,38 @@ export class SpeechService {
    */
   private async transcribeAudio(audioPath: string): Promise<string | null> {
     try {
-      // Use RunAnywhere STT model (Whisper)
+      console.log('[SpeechService] 🎯 transcribeAudio() called');
+      console.log('[SpeechService] 📁 Audio path:', audioPath);
+
+      // Check if STT model is ready
+      const modelReady = await checkSTTModelReady();
+      if (!modelReady) {
+        console.error('[SpeechService] ❌ STT model not ready');
+        throw new Error('STT model not loaded. Please ensure the model is downloaded.');
+      }
+
+      console.log('[SpeechService] ✅ STT model ready');
+
+      // Use RunAnywhere.transcribe() API
+      console.log('[SpeechService] 🤖 Running STT inference...');
       const result = await RunAnywhere.transcribe(audioPath);
 
       const transcription = result.text || '';
-      console.log('[SpeechService] Transcription:', transcription);
+      console.log('[SpeechService] ✅ Transcription complete');
+      console.log('[SpeechService] 📝 Text length:', transcription.length, 'chars');
+      console.log('[SpeechService] 📝 Text:', transcription);
 
       // Call callback with transcription
       if (this.transcriptionCallback) {
+        console.log('[SpeechService] 📤 Calling transcription callback');
         this.transcriptionCallback(transcription, Date.now());
+      } else {
+        console.log('[SpeechService] ⚠️ No transcription callback registered');
       }
 
       return transcription;
     } catch (error) {
-      console.error('[SpeechService] Transcription error:', error);
+      console.error('[SpeechService] ❌ Transcription error:', error);
       return null;
     }
   }
@@ -219,24 +270,36 @@ export class SpeechService {
 
         // Only transcribe if 5 seconds have passed since last transcription
         if (currentTime - this.lastTranscriptionTime >= 5000) {
-          console.log('[SpeechService] Performing continuous transcription...');
+          console.log('[SpeechService] 🔄 Performing continuous transcription...');
+          console.log('[SpeechService] 📁 Transcribing file:', this.recordingPath);
+
+          // Check if STT model is ready
+          const modelReady = await checkSTTModelReady();
+          if (!modelReady) {
+            console.warn('[SpeechService] ⚠️ STT model not ready, skipping transcription');
+            return;
+          }
 
           // Try to transcribe the current recording
           try {
             const result = await RunAnywhere.transcribe(this.recordingPath);
             const text = result.text || '';
 
+            console.log('[SpeechService] 📝 Transcription result length:', text.length, 'chars');
+
             if (text && text.length > 0 && this.transcriptionCallback) {
-              console.log('[SpeechService] Continuous transcription result:', text);
+              console.log('[SpeechService] ✅ Continuous transcription result:', text);
               this.transcriptionCallback(text, currentTime);
               this.lastTranscriptionTime = currentTime;
+            } else {
+              console.log('[SpeechService] ⚠️ Empty transcription result');
             }
           } catch (transcribeError) {
-            console.log('[SpeechService] Continuous transcription skipped (file may be in use)');
+            console.log('[SpeechService] ⚠️ Continuous transcription skipped:', transcribeError);
           }
         }
       } catch (error) {
-        console.error('[SpeechService] Continuous transcription error:', error);
+        console.error('[SpeechService] ❌ Continuous transcription error:', error);
       }
     }, 5000); // Check every 5 seconds
   }
@@ -255,6 +318,8 @@ export class SpeechService {
    * Start polling audio levels
    */
   private startAudioLevelPolling(): void {
+    let sampleCount = 0;
+
     this.audioLevelInterval = setInterval(async () => {
       try {
         if (!NativeAudioModule || !this.isRecording) {
@@ -263,6 +328,15 @@ export class SpeechService {
 
         const levelResult = await NativeAudioModule.getAudioLevel();
         const level = levelResult.level || 0;
+
+        // Log first 3 samples for debugging
+        if (sampleCount < 3) {
+          console.log(`[SpeechService] 🎚️ Audio level sample ${sampleCount + 1}:`, level);
+          sampleCount++;
+        } else if (sampleCount === 3) {
+          console.log('[SpeechService] 🎚️ Audio level polling working (further logs suppressed)');
+          sampleCount++;
+        }
 
         if (this.audioLevelCallback) {
           this.audioLevelCallback(level);

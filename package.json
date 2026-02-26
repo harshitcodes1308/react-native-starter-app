@@ -8,7 +8,9 @@
     "ios": "react-native run-ios",
     "start": "react-native start",
     "test": "jest",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "check-models": "bash scripts/check-models.sh",
+    "rebuild-android": "cd android && ./gradlew clean && cd .. && react-native run-android"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

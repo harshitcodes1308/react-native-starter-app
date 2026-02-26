@@ -109,8 +109,11 @@ export class NegotiationAnalyzer {
       this.stopContinuousAnalysis();
     }
 
+    console.log('[NegotiationAnalyzer] 🔄 Starting continuous analysis (every', interval, 'ms)');
+
     this.analysisInterval = setInterval(() => {
       if (this.isAnalyzing) {
+        console.log('[NegotiationAnalyzer] ⏭️ Skipping analysis (previous analysis still running)');
         return; // Skip if previous analysis still running
       }
 
@@ -118,18 +121,25 @@ export class NegotiationAnalyzer {
       const chunks = getChunks();
       const duration = getDuration();
 
+      console.log('[NegotiationAnalyzer] 🧠 Running analysis...');
+      console.log('[NegotiationAnalyzer] 📊 Chunks to analyze:', chunks.length);
+      console.log('[NegotiationAnalyzer] ⏱️ Session duration:', duration, 'ms');
+
       this.analyzeSession(chunks, duration)
         .then((result) => {
+          console.log('[NegotiationAnalyzer] ✅ Analysis complete');
+          console.log('[NegotiationAnalyzer] 🎯 Patterns found:', result.detectedPatterns.length);
+          console.log('[NegotiationAnalyzer] 💡 Suggestions:', result.suggestions.length);
           onAnalysis(result);
           this.isAnalyzing = false;
         })
         .catch((error) => {
-          console.error('[NegotiationAnalyzer] Continuous analysis error:', error);
+          console.error('[NegotiationAnalyzer] ❌ Continuous analysis error:', error);
           this.isAnalyzing = false;
         });
     }, interval);
 
-    console.log('[NegotiationAnalyzer] Started continuous analysis');
+    console.log('[NegotiationAnalyzer] ✅ Continuous analysis started');
   }
 
   /**

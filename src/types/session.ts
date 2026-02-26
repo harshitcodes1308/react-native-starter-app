@@ -134,6 +134,7 @@ export interface AppSettings {
   autoSaveInterval: number; // Milliseconds (default 45000)
   enableHapticFeedback: boolean;
   enableSuggestionNotifications: boolean;
+  debugMode?: boolean; // Enable debug mode with hardcoded transcripts
 }
 
 /**

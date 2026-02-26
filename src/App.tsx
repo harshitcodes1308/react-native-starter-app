@@ -20,24 +20,34 @@ const App: React.FC = () => {
     // Initialize SDK
     const initializeSDK = async () => {
       try {
+        console.log('[App] 🚀 Starting initialization...');
+
         // Initialize RunAnywhere SDK (Development mode doesn't require API key)
+        console.log('[App] 🔧 Initializing RunAnywhere SDK...');
         await RunAnywhere.initialize({
           environment: SDKEnvironment.Development,
         });
+        console.log('[App] ✅ RunAnywhere SDK initialized');
 
         // Register backends (per docs: https://docs.runanywhere.ai/react-native/quick-start)
+        console.log('[App] 📦 Registering backends...');
         const { LlamaCPP } = await import('@runanywhere/llamacpp');
         const { ONNX } = await import('@runanywhere/onnx');
 
         LlamaCPP.register();
         ONNX.register();
+        console.log('[App] ✅ Backends registered');
 
         // Register default models
+        console.log('[App] 🤖 Registering default models...');
         await registerDefaultModels();
+        console.log('[App] ✅ Default models registered');
 
-        console.log('RunAnywhere SDK initialized successfully');
+        console.log('[App] ✅ Initialization complete');
+        console.log('[App] ℹ️ STT model will download on first use');
       } catch (error) {
-        console.error('Failed to initialize RunAnywhere SDK:', error);
+        console.error('[App] ❌ Failed to initialize:', error);
+        console.error('[App] ❌ Error details:', JSON.stringify(error, null, 2));
       }
     };
 

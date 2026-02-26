@@ -10,6 +10,9 @@ import { LiveTranscript } from '../components/LiveTranscript';
 import { SuggestionCard } from '../components/SuggestionCard';
 import { CognitiveMeter } from '../components/CognitiveMeter';
 import { getModeConfig } from '../ai/patternLibrary';
+import { checkSTTModelReady } from '../services/SpeechService';
+import { LocalStorageService } from '../services/LocalStorageService';
+import { useModelService } from '../services/ModelService';
 
 type LiveSessionScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'LiveSession'>;
@@ -21,8 +24,88 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
   const { sessionState, isRecording, startSession, stopSession, cancelSession, error } =
     useLiveTranscription();
   const [hasStarted, setHasStarted] = useState(false);
+  const [modelReady, setModelReady] = useState(false);
+  const { downloadAndLoadSTT, isSTTLoaded, isSTTLoading } = useModelService();
 
   const modeConfig = getModeConfig(mode);
+
+  // Check STT model status on mount
+  useEffect(() => {
+    const checkModelStatus = async () => {
+      console.log('[LiveSessionScreen] 🔍 Checking STT model status...');
+
+      // Check if debug mode is enabled
+      const settings = await LocalStorageService.getSettings();
+      const debugMode = settings.debugMode || false;
+
+      if (debugMode) {
+        console.log('[LiveSessionScreen] 🐛 Debug mode enabled, skipping STT model check');
+        setModelReady(true);
+        return;
+      }
+
+      // Check if model is already loaded
+      if (isSTTLoaded) {
+        console.log('[LiveSessionScreen] ✅ STT model already loaded');
+        setModelReady(true);
+        return;
+      }
+
+      // Check if model is currently loading
+      if (isSTTLoading) {
+        console.log('[LiveSessionScreen] ⏳ STT model loading, waiting...');
+        // Model is being loaded, just wait
+        return;
+      }
+
+      // Model not loaded, try to load it
+      console.log('[LiveSessionScreen] 🤖 Starting STT model download and load...');
+      try {
+        await downloadAndLoadSTT();
+
+        // Verify it loaded
+        const ready = await checkSTTModelReady();
+        if (ready) {
+          console.log('[LiveSessionScreen] ✅ STT model loaded successfully');
+          setModelReady(true);
+        } else {
+          console.error('[LiveSessionScreen] ❌ STT model failed to load');
+          handleModelLoadFailure();
+        }
+      } catch (err) {
+        console.error('[LiveSessionScreen] ❌ Failed to load STT model:', err);
+        handleModelLoadFailure();
+      }
+    };
+
+    const handleModelLoadFailure = () => {
+      Alert.alert(
+        'Model Loading Failed',
+        'The speech recognition model could not be loaded.\n\nOptions:\n• Enable Debug Mode in Settings to test without audio\n• Check your internet connection\n• Try again',
+        [
+          { text: 'Go to Settings', onPress: () => navigation.navigate('Settings') },
+          {
+            text: 'Try Again',
+            onPress: () => {
+              setModelReady(false);
+              checkModelStatus();
+            },
+          },
+          { text: 'Cancel', onPress: () => navigation.goBack() },
+        ]
+      );
+    };
+
+    checkModelStatus();
+  }, [navigation, downloadAndLoadSTT, isSTTLoaded, isSTTLoading]);
+
+  // Watch for model loading completion
+  useEffect(() => {
+    if (isSTTLoaded && !modelReady) {
+      console.log('[LiveSessionScreen] ✅ STT model loaded (via ModelService)');
+      setModelReady(true);
+    }
+  }, [isSTTLoaded, modelReady]);
 
   useEffect(() => {
     if (error) {
@@ -31,15 +114,16 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
   }, [error]);
 
   useEffect(() => {
-    // Auto-start session
-    if (!hasStarted) {
+    // Auto-start session only when model is ready
+    if (!hasStarted && modelReady) {
+      console.log('[LiveSessionScreen] 🚀 Starting session (model ready)');
       setHasStarted(true);
       startSession(mode).catch((err) => {
-        console.error('Failed to start session:', err);
+        console.error('[LiveSessionScreen] ❌ Failed to start session:', err);
         navigation.goBack();
       });
     }
-  }, [hasStarted, mode, startSession, navigation]);
+  }, [hasStarted, modelReady, mode, startSession, navigation]);
 
   const handleStop = () => {
     Alert.alert(
@@ -97,6 +181,57 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
 
   // Get top 3 most recent patterns for suggestions
   const recentPatterns = sessionState.detectedPatterns.slice(-3).reverse();
+
+  // Log when patterns change
+  useEffect(() => {
+    console.log('[LiveSessionScreen] 🎯 Detected patterns updated');
+    console.log('[LiveSessionScreen] 📊 Total patterns:', sessionState.detectedPatterns.length);
+    console.log('[LiveSessionScreen] 🔝 Recent patterns (top 3):', recentPatterns.length);
+
+    if (recentPatterns.length > 0) {
+      console.log('[LiveSessionScreen] 💡 Suggestions panel should be visible');
+      recentPatterns.forEach((pattern, index) => {
+        console.log(`[LiveSessionScreen] Pattern ${index + 1}:`, {
+          id: pattern.id,
+          pattern: pattern.pattern,
+          confidence: pattern.confidenceScore,
+          suggestion: pattern.suggestion,
+        });
+      });
+    } else {
+      console.log('[LiveSessionScreen] ⚠️ No patterns to display');
+    }
+  }, [sessionState.detectedPatterns.length]);
+
+  // Log transcript updates
+  useEffect(() => {
+    console.log('[LiveSessionScreen] 📝 Transcript updated');
+    console.log('[LiveSessionScreen] 📊 Total chunks:', sessionState.transcript.length);
+    if (sessionState.transcript.length > 0) {
+      const lastChunk = sessionState.transcript[sessionState.transcript.length - 1];
+      console.log('[LiveSessionScreen] 📝 Last chunk:', lastChunk.text);
+    }
+  }, [sessionState.transcript.length]);
+
+  // Show loading screen while model loads
+  if (!modelReady) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={AppColors.primaryDark} />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingTitle}>
+            {isSTTLoading ? '📥 Downloading Model...' : '🤖 Loading AI Model...'}
+          </Text>
+          <Text style={styles.loadingText}>
+            {isSTTLoading ? 'First-time setup (~75MB)' : 'Preparing speech recognition'}
+          </Text>
+          <Text style={styles.loadingSubtext}>
+            {isSTTLoading ? 'This only happens once' : 'Please wait...'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -176,6 +311,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.primaryDark,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: AppColors.textPrimary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: AppColors.textSecondary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSubtext: {
+    fontSize: 13,
+    color: AppColors.textMuted,
+    textAlign: 'center',
   },
   topBar: {
     paddingTop: 50,

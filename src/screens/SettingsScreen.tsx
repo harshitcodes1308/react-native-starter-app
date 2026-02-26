@@ -231,6 +231,44 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           </View>
         </View>
 
+        {/* Debug Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🐛 Debug & Testing</Text>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Debug Mode</Text>
+              <Text style={styles.settingDescription}>
+                Use hardcoded transcripts instead of real STT (for testing without audio)
+              </Text>
+            </View>
+            <Switch
+              value={settings.debugMode || false}
+              onValueChange={(value) => {
+                saveSettings({ ...settings, debugMode: value });
+                if (value) {
+                  Alert.alert(
+                    'Debug Mode Enabled',
+                    'The app will now use hardcoded test transcripts instead of real speech-to-text. Perfect for testing the pipeline without needing audio input. Restart your session for changes to take effect.',
+                    [{ text: 'Got it' }]
+                  );
+                }
+              }}
+              trackColor={{ false: AppColors.textMuted, true: AppColors.warning }}
+              thumbColor={AppColors.textPrimary}
+            />
+          </View>
+
+          {settings.debugMode && (
+            <View style={styles.debugNotice}>
+              <Text style={styles.debugNoticeText}>
+                ⚠️ Debug mode active. The app will inject test transcripts every 7 seconds to test
+                pattern detection without real audio.
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Storage Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Storage</Text>
@@ -428,6 +466,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: AppColors.error,
+  },
+  debugNotice: {
+    backgroundColor: AppColors.warning + '20',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: AppColors.warning,
+  },
+  debugNoticeText: {
+    fontSize: 12,
+    color: AppColors.textSecondary,
+    lineHeight: 16,
   },
   privacyNotice: {
     flexDirection: 'row',
