@@ -8,8 +8,10 @@ import { RootStackParamList } from '../navigation/types';
 import { useLiveTranscription } from '../hooks/useLiveTranscription';
 import { LiveTranscript } from '../components/LiveTranscript';
 import { SuggestionCard } from '../components/SuggestionCard';
+import { CounterStrategyCard } from '../components/CounterStrategyCard';
 import { CognitiveMeter } from '../components/CognitiveMeter';
 import { getModeConfig } from '../ai/patternLibrary';
+import { useCounterStrategy } from '../hooks/useCounterStrategy';
 import { checkSTTModelReady } from '../services/SpeechService';
 import { LocalStorageService } from '../services/LocalStorageService';
 import { useModelService } from '../services/ModelService';
@@ -28,6 +30,9 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
   const { downloadAndLoadSTT, isSTTLoaded, isSTTLoading } = useModelService();
 
   const modeConfig = getModeConfig(mode);
+
+  // Counter-strategy hook — processes detected patterns with cooldown & threshold
+  const { activeStrategy } = useCounterStrategy(sessionState.detectedPatterns);
 
   useEffect(() => {
     const checkModelStatus = async () => {
@@ -156,6 +161,13 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
         <LiveTranscript transcript={sessionState.transcript} highlightPatterns />
       </View>
 
+      {/* Counter Strategy Card */}
+      {activeStrategy && (
+        <View style={styles.counterStrategyPanel}>
+          <CounterStrategyCard strategy={activeStrategy} />
+        </View>
+      )}
+
       {/* Suggestions Panel */}
       {recentPatterns.length > 0 && (
         <View style={styles.suggestionsPanel}>
@@ -211,6 +223,9 @@ const styles = StyleSheet.create({
   topBarRight: { marginLeft: 16 },
 
   transcriptContainer: { flex: 1, backgroundColor: AppColors.primaryLight },
+
+  counterStrategyPanel: { backgroundColor: '#FFFFFF', paddingTop: 12, paddingBottom: 4, borderTopWidth: 1, borderTopColor: AppColors.accentViolet + '20' },
+
   suggestionsPanel: { backgroundColor: '#FFFFFF', paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', maxHeight: 300 },
   suggestionsTitle: { fontSize: 16, fontWeight: '700', color: AppColors.textPrimary, marginHorizontal: 16, marginBottom: 12 },
 
