@@ -299,12 +299,20 @@ export class SessionEngine {
       }
     });
 
+    // Sort patterns by confidence (highest first) so counter-strategy picks the best one
+    this.state.detectedPatterns.sort((a, b) => b.confidenceScore - a.confidenceScore);
+
     // Update focus score
     this.state.currentFocusScore = result.focusScore;
 
     console.log('[SessionEngine] ✅ Analysis complete');
     console.log('[SessionEngine] 🆕 New patterns added:', newPatternsCount);
     console.log('[SessionEngine] 📊 Total patterns:', this.state.detectedPatterns.length);
+
+    if (newPatternsCount > 0) {
+      // Force new array references so React detects the change
+      this.state.detectedPatterns = [...this.state.detectedPatterns];
+    }
 
     this.notifyUpdate();
   }
@@ -387,7 +395,12 @@ export class SessionEngine {
   private notifyUpdate(): void {
     if (this.updateCallback) {
       console.log('[SessionEngine] 🔔 Notifying state update to UI');
-      this.updateCallback({ ...this.state });
+      // Create new array references so React's useState detects the change
+      this.updateCallback({
+        ...this.state,
+        transcript: [...this.state.transcript],
+        detectedPatterns: [...this.state.detectedPatterns],
+      });
     } else {
       console.log('[SessionEngine] ⚠️ No update callback registered');
     }

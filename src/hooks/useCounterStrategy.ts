@@ -38,13 +38,18 @@ export const useCounterStrategy = (
     useEffect(() => {
         if (detectedPatterns.length === 0) return;
 
-        // Get the highest-confidence pattern
-        const topPattern = detectedPatterns[0]; // Already sorted by confidence (highest first)
+        // Get the highest-confidence pattern (array is sorted by confidence, highest first)
+        const topPattern = detectedPatterns[0];
 
         if (!topPattern) return;
 
+        console.log('[useCounterStrategy] 🔍 Evaluating top pattern:', topPattern.pattern, 'confidence:', topPattern.confidenceScore, 'id:', topPattern.id);
+
         // Skip if same pattern ID (exact same detection, prevents flicker)
-        if (topPattern.id === lastTacticRef.current) return;
+        if (topPattern.id === lastTacticRef.current) {
+            console.log('[useCounterStrategy] ⏭️ Same pattern ID, skipping');
+            return;
+        }
 
         // Try to generate counter-strategy (engine handles cooldown internally)
         const strategy = generateCounterStrategies(
@@ -59,8 +64,10 @@ export const useCounterStrategy = (
             lastTacticRef.current = topPattern.id;
             lastTimestampRef.current = Date.now();
             setActiveStrategy(strategy);
+        } else {
+            console.log('[useCounterStrategy] ❌ No strategy generated (cooldown or below threshold)');
         }
-    }, [detectedPatterns, confidenceThreshold]);
+    }, [detectedPatterns, detectedPatterns.length, confidenceThreshold]);
 
     const dismiss = useCallback(() => {
         setActiveStrategy(null);
