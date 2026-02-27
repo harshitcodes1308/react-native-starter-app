@@ -92,7 +92,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </LinearGradient>
               <View style={styles.headerTextContainer}>
                 <Text style={styles.greeting}>{getGreeting()},</Text>
-                <Text style={styles.userName}>Latent User</Text>
+                <Text style={styles.userName}>Latent Strategist</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -402,15 +402,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   greeting: {
-    fontSize: 13,
-    color: AppColors.textSecondary,
+    fontSize: 14,
+    color: '#6B6B80',
     fontWeight: '400',
+    marginBottom: 4,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: AppColors.textPrimary,
-    marginTop: 1,
+    letterSpacing: 0.5,
+    color: '#1E1E2C',
   },
   notificationButton: {
     width: 44,

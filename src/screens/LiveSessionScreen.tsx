@@ -5,16 +5,14 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { AppColors } from '../theme';
 import { RootStackParamList } from '../navigation/types';
-import { useLiveTranscription } from '../hooks/useLiveTranscription';
 import { LiveTranscript } from '../components/LiveTranscript';
 import { SuggestionCard } from '../components/SuggestionCard';
 import { CounterStrategyCard } from '../components/CounterStrategyCard';
 import { CognitiveMeter } from '../components/CognitiveMeter';
 import { getModeConfig } from '../ai/patternLibrary';
-import { useCounterStrategy } from '../hooks/useCounterStrategy';
-import { checkSTTModelReady } from '../services/SpeechService';
 import { LocalStorageService } from '../services/LocalStorageService';
 import { useModelService } from '../services/ModelService';
+import { useLiveSession } from '../hooks/useLiveSession';
 
 type LiveSessionScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'LiveSession'>;
@@ -23,8 +21,12 @@ type LiveSessionScreenProps = {
 
 export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation, route }) => {
   const { mode } = route.params;
-  const { sessionState, isRecording, startSession, stopSession, cancelSession, error } =
-    useLiveTranscription();
+
+  // ─── Single source of truth: useReducer-based session hook ───
+  // Replaces useLiveTranscription + useCounterStrategy
+  const { state, isRecording, startSession, stopSession, cancelSession, error } =
+    useLiveSession();
+
   const [hasStarted, setHasStarted] = useState(false);
   const [modelReady, setModelReady] = useState(false);
   const [modelError, setModelError] = useState(false);
@@ -32,8 +34,10 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
 
   const modeConfig = getModeConfig(mode);
 
-  // Counter-strategy hook — processes detected patterns with cooldown & threshold
-  const { activeStrategy } = useCounterStrategy(sessionState.detectedPatterns);
+  // ─── Suggestions and strategy from reducer state (no separate hooks) ───
+  // The reducer handles all tactic detection, cooldown, and counter-strategy
+  // generation inside the TACTIC_DETECTED action. We just read the result.
+  const { activeStrategy, suggestions, detectedPatterns } = state;
 
   // Kick off model download+load when SDK is ready
   useEffect(() => {
@@ -147,7 +151,8 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const recentPatterns = sessionState.detectedPatterns.slice(-3).reverse();
+  // Get recent patterns for suggestion cards (last 3, reversed for display)
+  const recentPatterns = detectedPatterns.slice(-3).reverse();
 
   if (!modelReady) {
     const loadingTitle = !isSDKReady
@@ -196,28 +201,28 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
             </View>
             <View style={styles.recordingIndicator}>
               <View style={styles.recordingDot} />
-              <Text style={styles.recordingText}>{formatDuration(sessionState.duration)}</Text>
+              <Text style={styles.recordingText}>{formatDuration(state.duration)}</Text>
             </View>
           </View>
           <View style={styles.topBarRight}>
-            <CognitiveMeter focusScore={sessionState.currentFocusScore} size={60} showLabel={false} />
+            <CognitiveMeter focusScore={state.focusScore} size={60} showLabel={false} />
           </View>
         </View>
       </View>
 
-      {/* Transcript */}
+      {/* Transcript — reads from reducer state */}
       <View style={styles.transcriptContainer}>
-        <LiveTranscript transcript={sessionState.transcript} highlightPatterns />
+        <LiveTranscript transcript={state.transcript} highlightPatterns />
       </View>
 
-      {/* Counter Strategy Card */}
-      {activeStrategy && (
+      {/* Counter Strategy Card — only shown when tactic is detected */}
+      {activeStrategy && state.tactic != null && (
         <View style={styles.counterStrategyPanel}>
           <CounterStrategyCard strategy={activeStrategy} />
         </View>
       )}
 
-      {/* Suggestions Panel */}
+      {/* Suggestions Panel — only shown when patterns exist */}
       {recentPatterns.length > 0 && (
         <View style={styles.suggestionsPanel}>
           <Text style={styles.suggestionsTitle}>💡 Live Suggestions</Text>
@@ -240,10 +245,10 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
         </TouchableOpacity>
       </View>
 
-      {sessionState.audioLevel > 0 && (
+      {state.audioLevel > 0 && (
         <View style={styles.audioVisualizer}>
           <LinearGradient colors={['#7B61FF', '#9B82FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={[styles.audioBar, { width: `${Math.min(sessionState.audioLevel * 100, 100)}%` }]} />
+            style={[styles.audioBar, { width: `${Math.min(state.audioLevel * 100, 100)}%` }]} />
         </View>
       )}
     </View>
