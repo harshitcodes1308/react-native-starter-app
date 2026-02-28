@@ -151,9 +151,6 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Get recent patterns for suggestion cards (last 3, reversed for display)
-  const recentPatterns = detectedPatterns.slice(-3).reverse();
-
   if (!modelReady) {
     const loadingTitle = !isSDKReady
       ? '🔧 Initializing AI Engine...'
@@ -222,16 +219,6 @@ export const LiveSessionScreen: React.FC<LiveSessionScreenProps> = ({ navigation
         </View>
       )}
 
-      {/* Suggestions Panel — only shown when patterns exist */}
-      {recentPatterns.length > 0 && (
-        <View style={styles.suggestionsPanel}>
-          <Text style={styles.suggestionsTitle}>💡 Live Suggestions</Text>
-          {recentPatterns.map((pattern) => (
-            <SuggestionCard key={pattern.id} pattern={pattern} />
-          ))}
-        </View>
-      )}
-
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>
         <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
@@ -276,9 +263,9 @@ const styles = StyleSheet.create({
   recordingText: { fontSize: 24, fontWeight: '700', color: AppColors.textPrimary, fontVariant: ['tabular-nums'] },
   topBarRight: { marginLeft: 16 },
 
-  transcriptContainer: { flex: 1, backgroundColor: AppColors.primaryLight },
+  transcriptContainer: { flex: 1, backgroundColor: AppColors.primaryLight, minHeight: 150 },
 
-  counterStrategyPanel: { backgroundColor: '#FFFFFF', paddingTop: 12, paddingBottom: 4, borderTopWidth: 1, borderTopColor: AppColors.accentViolet + '20' },
+  counterStrategyPanel: { backgroundColor: '#FFFFFF', paddingTop: 12, paddingBottom: 4, borderTopWidth: 1, borderTopColor: AppColors.accentViolet + '20', maxHeight: '45%' },
 
   suggestionsPanel: { backgroundColor: '#FFFFFF', paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', maxHeight: 300 },
   suggestionsTitle: { fontSize: 16, fontWeight: '700', color: AppColors.textPrimary, marginHorizontal: 16, marginBottom: 12 },

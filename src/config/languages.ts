@@ -24,10 +24,10 @@ export const SUPPORTED_LANGUAGES: LanguageConfig[] = [
     name: 'English',
     nativeName: 'English',
     flag: '🇺🇸',
-    sttModelId: 'sherpa-onnx-whisper-tiny.en',
+    sttModelId: 'sherpa-onnx-whisper-base.en',
     ttsModelId: 'vits-piper-en_US-lessac-medium',
     sttModelUrl:
-      'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/sherpa-onnx-whisper-tiny.en.tar.gz',
+      'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/sherpa-onnx-whisper-base.en.tar.gz',
     ttsModelUrl:
       'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/vits-piper-en_US-lessac-medium.tar.gz',
   },

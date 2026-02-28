@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Note: react-native-screens is shimmed in index.js for iOS New Architecture compatibility
 import { ModelServiceProvider } from './services/ModelService';
 import { AppColors } from './theme';
-import { HomeScreen, LiveSessionScreen, InsightsScreen, SettingsScreen } from './screens';
+import { HomeScreen, LiveSessionScreen, InsightsScreen, SettingsScreen, DisclaimerScreen, OutcomeReplayScreen, PreSessionFormScreen, PreSessionStrategyScreen } from './screens';
 import { RootStackParamList } from './navigation/types';
 
 // Using JS-based stack navigator instead of native-stack
@@ -43,11 +43,27 @@ const App: React.FC = () => {
               ...TransitionPresets.SlideFromRightIOS,
             }}
           >
+            <Stack.Screen name="Disclaimer" component={DisclaimerScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+            <Stack.Screen
+              name="PreSessionForm"
+              component={PreSessionFormScreen}
+              options={{ title: 'Strategic Preparation', headerStyle: { backgroundColor: '#0A0E1A' }, headerTintColor: '#FFFFFF' }}
+            />
+            <Stack.Screen
+              name="PreSessionStrategy"
+              component={PreSessionStrategyScreen}
+              options={{ title: 'Offline Analysis', headerStyle: { backgroundColor: '#0A0E1A' }, headerTintColor: '#FFFFFF' }}
+            />
             <Stack.Screen
               name="LiveSession"
               component={LiveSessionScreen}
-              options={{ title: 'Live Session' }}
+              options={{ title: 'Live Tactical Mode' }}
+            />
+            <Stack.Screen
+              name="OutcomeReplay"
+              component={OutcomeReplayScreen}
+              options={{ title: 'Strategic Outcome Replay™' }}
             />
             <Stack.Screen
               name="Insights"

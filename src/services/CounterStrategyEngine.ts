@@ -99,6 +99,16 @@ const COUNTER_STRATEGY_MAP: Record<NegotiationPattern, CounterStrategyDefinition
         explanation:
             'Commitment language signals readiness to close. Ensure all details are clear and get confirmation in writing.',
     },
+
+    [NegotiationPattern.STRENGTH_SIGNAL]: {
+        suggestions: [
+            'Leverage this momentum to position yourself firmly',
+            'Directly tie this achievement to their current needs',
+            'Use this high-value moment to pivot to compensation framing',
+        ],
+        explanation:
+            'Strength signals display your leverage points. Use them to establish value before discussing terms.',
+    },
 };
 
 /**

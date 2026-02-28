@@ -41,7 +41,7 @@ export class NegotiationAnalyzer {
   /**
    * Analyze multiple transcript chunks (window-based analysis)
    */
-  analyzeWindow(chunks: TranscriptChunk[], windowSize: number = 3): DetectedPattern[] {
+  analyzeWindow(chunks: TranscriptChunk[], windowSize: number = 1): DetectedPattern[] {
     const recentChunks = chunks.slice(-windowSize).map((c) => ({
       text: c.text,
       timestamp: c.timestamp,
@@ -62,8 +62,8 @@ export class NegotiationAnalyzer {
     return new Promise((resolve) => {
       InteractionManager.runAfterInteractions(() => {
         try {
-          // Analyze patterns from recent chunks
-          const detectedPatterns = this.analyzeWindow(chunks, 5);
+          // Analyze patterns from the most recent chunk to optimize speed and maintain high keyword density
+          const detectedPatterns = this.analyzeWindow(chunks, 1);
 
           // Calculate cognitive metrics
           const cognitiveMetrics = calculateCognitiveMetrics(
@@ -97,61 +97,12 @@ export class NegotiationAnalyzer {
   }
 
   /**
-   * Start continuous analysis (runs every 3 seconds)
+   * (Removed `startContinuousAnalysis` to migrate to debounced execution inline)
    */
-  startContinuousAnalysis(
-    getChunks: () => TranscriptChunk[],
-    getDuration: () => number,
-    onAnalysis: (result: AnalysisResult) => void,
-    interval: number = 3000
-  ): void {
-    if (this.analysisInterval) {
-      this.stopContinuousAnalysis();
-    }
-
-    console.log('[NegotiationAnalyzer] 🔄 Starting continuous analysis (every', interval, 'ms)');
-
-    this.analysisInterval = setInterval(() => {
-      if (this.isAnalyzing) {
-        console.log('[NegotiationAnalyzer] ⏭️ Skipping analysis (previous analysis still running)');
-        return; // Skip if previous analysis still running
-      }
-
-      this.isAnalyzing = true;
-      const chunks = getChunks();
-      const duration = getDuration();
-
-      console.log('[NegotiationAnalyzer] 🧠 Running analysis...');
-      console.log('[NegotiationAnalyzer] 📊 Chunks to analyze:', chunks.length);
-      console.log('[NegotiationAnalyzer] ⏱️ Session duration:', duration, 'ms');
-
-      this.analyzeSession(chunks, duration)
-        .then((result) => {
-          console.log('[NegotiationAnalyzer] ✅ Analysis complete');
-          console.log('[NegotiationAnalyzer] 🎯 Patterns found:', result.detectedPatterns.length);
-          console.log('[NegotiationAnalyzer] 💡 Suggestions:', result.suggestions.length);
-          onAnalysis(result);
-          this.isAnalyzing = false;
-        })
-        .catch((error) => {
-          console.error('[NegotiationAnalyzer] ❌ Continuous analysis error:', error);
-          this.isAnalyzing = false;
-        });
-    }, interval);
-
-    console.log('[NegotiationAnalyzer] ✅ Continuous analysis started');
-  }
 
   /**
-   * Stop continuous analysis
+   * (Removed `stopContinuousAnalysis` to migrate to debounced execution inline)
    */
-  stopContinuousAnalysis(): void {
-    if (this.analysisInterval) {
-      clearInterval(this.analysisInterval);
-      this.analysisInterval = null;
-      console.log('[NegotiationAnalyzer] Stopped continuous analysis');
-    }
-  }
 
   /**
    * Generate tactical suggestions based on detected patterns
@@ -305,6 +256,6 @@ export class NegotiationAnalyzer {
    * Cleanup
    */
   cleanup(): void {
-    this.stopContinuousAnalysis();
+    // no continuous analysis to stop
   }
 }

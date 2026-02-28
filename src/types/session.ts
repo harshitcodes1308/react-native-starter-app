@@ -12,6 +12,9 @@ export enum NegotiationMode {
   SALES = 'sales',
   STARTUP_PITCH = 'startup_pitch',
   SALARY_RAISE = 'salary_raise',
+  INVESTOR_MEETING = 'investor_meeting',
+  CLIENT_NEGOTIATION = 'client_negotiation',
+  CUSTOM_SCENARIO = 'custom_scenario',
 }
 
 /**
@@ -26,6 +29,7 @@ export enum NegotiationPattern {
   POSITIVE_SIGNAL = 'positive_signal',
   NEGATIVE_SIGNAL = 'negative_signal',
   COMMITMENT_LANGUAGE = 'commitment_language',
+  STRENGTH_SIGNAL = 'strength_signal',
 }
 
 /**
@@ -97,6 +101,29 @@ export interface LiveSessionState {
 }
 
 /**
+ * Adaptive Inputs collected before session start
+ */
+export interface PreSessionInputs {
+  [key: string]: string; // Key-value maps for dynamic form questions
+}
+
+/**
+ * 10-Point Strategic Analysis Plan generated offline
+ */
+export interface StrategicAnalysis {
+  powerPositioning: string;
+  likelyObjections: string[];
+  psychologicalTactics: string[];
+  recommendedResponses: string[];
+  highImpactPhrases: string[];
+  phrasesToAvoid: string[];
+  confidenceTriggers: string[];
+  openingScript: string;
+  closingScript: string;
+  mistakesToAvoid: string[];
+}
+
+/**
  * Persisted session data (saved to AsyncStorage)
  */
 export interface Session {
@@ -104,6 +131,8 @@ export interface Session {
   timestamp: number; // Session start time
   duration: number; // Total duration in milliseconds
   mode: NegotiationMode;
+  preSessionInputs?: PreSessionInputs;
+  strategicAnalysis?: StrategicAnalysis;
   transcript: TranscriptChunk[];
   detectedPatterns: DetectedPattern[];
   cognitiveMetrics: CognitiveMetrics;
