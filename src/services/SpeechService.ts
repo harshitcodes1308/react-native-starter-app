@@ -28,7 +28,7 @@ export const checkSTTModelReady = async (): Promise<boolean> => {
     }
 
     // Fallback: check if model has a local path (downloaded but maybe not loaded)
-    const modelInfo = await RunAnywhere.getModelInfo('sherpa-onnx-whisper-tiny.en');
+    const modelInfo = await RunAnywhere.getModelInfo('sherpa-onnx-whisper-base.en');
     const hasLocalPath = !!modelInfo?.localPath;
     console.log('[SpeechService] STT model check: isLoaded=false, hasLocalPath=', hasLocalPath);
     
@@ -254,9 +254,15 @@ export class SpeechService {
 
       console.log('[SpeechService] ✅ STT model ready');
 
+      // Use the provided exact domain prompt bias string
+      const DOMAIN_PROMPT = "This conversation includes words like salary, fresher, offer, budget, negotiation, interview, compensation, package, client, proposal, anchor, objection, startup, candidate.";
+      console.log("[STT] Using domain prompt bias.");
+
       // Use RunAnywhere.transcribeFile() API for file-based transcription
       console.log('[SpeechService] 🤖 Running STT inference on file...');
-      const result = await RunAnywhere.transcribeFile(audioPath);
+      const result = await RunAnywhere.transcribeFile(audioPath, {
+        initialPrompt: DOMAIN_PROMPT
+      } as any);
 
       const transcription = result.text || '';
       console.log('[SpeechService] ✅ Transcription complete');
@@ -281,7 +287,7 @@ export class SpeechService {
   private startContinuousTranscription(): void {
     this.lastTranscriptionTime = Date.now();
 
-    // Check interval every 1 second, but only transcribe when 3 seconds have passed
+    // Check interval every 500ms, but only transcribe when 1.5 seconds have passed
     this.transcriptionInterval = setInterval(async () => {
       try {
         if (!this.isRecording) return;
@@ -289,8 +295,8 @@ export class SpeechService {
         const currentTime = Date.now();
         const timeSinceLast = currentTime - this.lastTranscriptionTime;
 
-        // Extract and transcribe every ~3 seconds for fast response
-        if (timeSinceLast >= 3000) {
+        // Extract and transcribe every 5.0 seconds for maximum stability and sentence context
+        if (timeSinceLast >= 5000) {
           console.log(`[SpeechService] 🔄 Processing ${timeSinceLast}ms chunk...`);
 
           if (!NativeAudioModule) {
@@ -299,7 +305,8 @@ export class SpeechService {
           }
 
           try {
-            // Get ONLY the audio recorded since the last transcription
+            // Get EXACTLY the audio recorded since the last transcription. No padding, no overlap.
+            // This guarantees that Whisper evaluates the new chunk as a completely unique, sequential audio segment.
             const snapshot = await NativeAudioModule.getRecentAudioSnapshot(timeSinceLast);
             const snapshotPath = snapshot.path;
 
@@ -315,14 +322,31 @@ export class SpeechService {
               snapshot.fileSize
             );
 
+            // Use the provided exact domain prompt bias string
+            const DOMAIN_PROMPT = "This conversation includes words like salary, fresher, offer, budget, negotiation, interview, compensation, package, client, proposal, anchor, objection, startup, candidate.";
+            console.log("[STT] Using domain prompt bias.");
+
             // Transcribe the small snapshot file (O(1) time)
-            const result = await RunAnywhere.transcribeFile(snapshotPath);
+            const result = await RunAnywhere.transcribeFile(snapshotPath, {
+              initialPrompt: DOMAIN_PROMPT
+            } as any);
             const newText = (result.text || '').trim();
 
             if (newText && newText.length > 0) {
-              console.log('[SpeechService] ✅ New chunk transcription:', newText);
-              if (this.transcriptionCallback) {
-                this.transcriptionCallback(newText, currentTime);
+              // Sanitize whisper STT tokens that appear during silence
+              const sanitized = newText
+                .replace(/\[BLANK_AUDIO\]/g, '')
+                .replace(/\[ Pause \]/gi, '')
+                .replace(/\(Pause\)/gi, '')
+                .trim();
+                
+              if (sanitized.length > 0) {
+                console.log('[SpeechService] ✅ New chunk transcription:', sanitized);
+                if (this.transcriptionCallback) {
+                  this.transcriptionCallback(sanitized, currentTime);
+                }
+              } else {
+                console.log('[SpeechService] ⚠️ Chunk was only silence/pause tokens');
               }
             } else {
               console.log('[SpeechService] ⚠️ Empty transcription result for chunk');
@@ -338,7 +362,7 @@ export class SpeechService {
       } catch (error) {
         console.error('[SpeechService] ❌ Continuous transcription error:', error);
       }
-    }, 1000); // Check every 1 second
+    }, 1000); // Check interval
   }
 
   /**

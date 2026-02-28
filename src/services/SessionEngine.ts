@@ -18,21 +18,68 @@ import { SpeechService } from './SpeechService';
 import { NegotiationAnalyzer } from './NegotiationAnalyzer';
 import { LocalStorageService } from './LocalStorageService';
 import { calculateCognitiveMetrics } from '../ai/scoringEngine';
+import { autoCorrectTranscript } from '../ai/WhisperAutoCorrector';
 
 export interface SessionUpdateCallback {
   (state: LiveSessionState): void;
 }
 
-const DEBUG_TRANSCRIPTS = [
-  'We usually offer around 6 LPA for this position.',
-  'I need to check with my manager before making any decision.',
-  'Your product looks interesting, but the price is too high.',
-  'Let me think about it and get back to you next week.',
-  "This looks great! I'm really excited about moving forward.",
-  'We have budget constraints this quarter.',
-  'I have authority to approve deals up to 50K.',
-  'Can you send me more information via email?',
-];
+const DEBUG_TRANSCRIPTS: Record<NegotiationMode, string[]> = {
+  [NegotiationMode.JOB_INTERVIEW]: [
+    'We usually offer around 6 LPA for this position.',
+    'I need to check with my manager before making any decision.',
+    'Your profile looks interesting, but we have strict budget constraints.',
+    'Let me think about it and get back to you next week.',
+    "This looks great! I'm really excited about moving forward.",
+    'Are you willing to relocate for this role?',
+    'I have authority to approve up to 8 LPA maximum.',
+  ],
+  [NegotiationMode.SALES]: [
+    'Your product looks interesting, but the price is too high.',
+    'We already use a competitor for this service.',
+    'I need to get approval from the procurement department.',
+    'What kind of discount can you offer us?',
+    'We have budget constraints this quarter.',
+    'Can we start with a pilot program first?',
+  ],
+  [NegotiationMode.STARTUP_PITCH]: [
+    'What is your customer acquisition cost?',
+    'We usually invest in later stage companies.',
+    'Your valuation expectations seem a bit high.',
+    'How do you plan to scale this next year?',
+    'I need to check with my partners before committing.',
+    'This looks great! I am really excited about moving forward.',
+  ],
+  [NegotiationMode.SALARY_RAISE]: [
+    'Company performance has been slow this quarter.',
+    'We usually only do appraisals at the end of the year.',
+    'I agree you have done good work, but 30% is too much.',
+    'Let me review the budget with HR and get back to you.',
+    'Can we look at performance bonuses instead of a base hike?',
+    'You are a valuable asset to the team.',
+  ],
+  [NegotiationMode.INVESTOR_MEETING]: [
+    'Your burn rate is concerning for this stage.',
+    'What is the exact runway you have left?',
+    'We need to see more traction before releasing the next tranche.',
+    'Who else is participating in this funding round?',
+    'Your Go-to-market strategy seems expensive.',
+  ],
+  [NegotiationMode.CLIENT_NEGOTIATION]: [
+    'The timeline for these deliverables is too tight.',
+    'Can we reduce the retainer fee for the first three months?',
+    'We need unlimited revisions included in this contract.',
+    'We are waiting on our legal team to review the MSA.',
+    'This scope is larger than what we initially discussed.',
+  ],
+  [NegotiationMode.CUSTOM_SCENARIO]: [
+    'I need to check with my manager before making any decision.',
+    'Let me think about it and get back to you next week.',
+    "This looks great! I'm really excited about moving forward.",
+    'We have budget constraints this quarter.',
+    'Can you send me more information via email?',
+  ],
+};
 
 /**
  * SessionEngine - Orchestrates the entire session lifecycle
@@ -46,6 +93,7 @@ export class SessionEngine {
   private state: LiveSessionState;
   private updateCallback: SessionUpdateCallback | null = null;
   private autoSaveInterval: NodeJS.Timeout | null = null;
+  private analysisDebounceTrigger: NodeJS.Timeout | null = null;
   private autoSaveIntervalMs: number = 45000; // 45 seconds as requested
   private debugTranscriptIndex: number = 0;
   private debugInterval: NodeJS.Timeout | null = null;
@@ -114,13 +162,8 @@ export class SessionEngine {
         }
       }
 
-      // Start continuous analysis (every 3 seconds)
-      this.analyzer.startContinuousAnalysis(
-        () => this.state.transcript,
-        () => this.state.duration,
-        this.onAnalysisResult.bind(this),
-        3000
-      );
+      // Removed: analyzer.startContinuousAnalysis
+      // Now running debounced in onTranscription
 
       // Start auto-save (every 45 seconds)
       this.startAutoSave();
@@ -147,7 +190,7 @@ export class SessionEngine {
       console.log('[SessionEngine] Stopping session:', this.sessionId);
 
       // Stop services
-      this.analyzer.stopContinuousAnalysis();
+      if (this.analysisDebounceTrigger) clearTimeout(this.analysisDebounceTrigger);
       this.stopAutoSave();
       this.stopDebugTranscripts();
 
@@ -216,7 +259,7 @@ export class SessionEngine {
   async cancelSession(): Promise<void> {
     console.log('[SessionEngine] Canceling session');
 
-    this.analyzer.stopContinuousAnalysis();
+    if (this.analysisDebounceTrigger) clearTimeout(this.analysisDebounceTrigger);
     this.stopAutoSave();
     this.stopDebugTranscripts();
 
@@ -229,34 +272,66 @@ export class SessionEngine {
     this.updateCallback = null;
   }
 
-  /**
-   * Handle transcription from speech service
-   */
   private onTranscription(text: string, timestamp: number): void {
-    console.log('[SessionEngine] 📥 onTranscription() called');
-    console.log('[SessionEngine] 📝 Text:', text);
-    console.log('[SessionEngine] ⏰ Timestamp:', timestamp);
+    const rawText = text.trim();
+    if (!rawText) return;
 
-    if (!text.trim()) {
-      console.log('[SessionEngine] ⚠️ Empty text, skipping');
-      return;
+    // Remove blank tokens just in case
+    let cleanedText = rawText.replace(/\[BLANK_AUDIO\]/g, '').replace(/\[ Pause \]/gi, '').trim();
+    if (!cleanedText) return;
+
+    // 💡 Auto-correct Whisper 'tiny' hallucinations based on context vocabulary
+    cleanedText = autoCorrectTranscript(cleanedText, this.mode);
+
+    const transcriptLen = this.state.transcript.length;
+    let isNewSentence = true;
+
+    if (transcriptLen > 0) {
+      const lastChunk = this.state.transcript[transcriptLen - 1];
+      // Only break to a new bubble if the previous chunk ended with punctuation or it's a long pause
+      const isFinished = /[.!?]\s*$/.test(lastChunk.text);
+      const timeSinceLastUpdate = timestamp - lastChunk.timestamp;
+      const isLongPause = timeSinceLastUpdate > 10000;
+
+      if (!isFinished && !isLongPause) {
+        // BREAK REACT'S REFERENCE EQUALITY: Create a completely new object
+        // so FlatList detects that this item changed and actually re-renders!
+        this.state.transcript[transcriptLen - 1] = {
+          ...lastChunk,
+          text: `${lastChunk.text} ${cleanedText}`.trim(),
+          timestamp: timestamp,
+        };
+        isNewSentence = false;
+      }
     }
 
-    const chunk: TranscriptChunk = {
-      id: `chunk_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
-      text: text.trim(),
-      timestamp,
-    };
-
-    this.state.transcript.push(chunk);
+    if (isNewSentence) {
+      const chunk: TranscriptChunk = {
+        id: `chunk_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
+        text: cleanedText,
+        timestamp,
+      };
+      this.state.transcript.push(chunk);
+    }
     this.state.duration = Date.now() - this.state.startTime;
+    this.triggerDebouncedAnalysis();
+  }
 
-    console.log('[SessionEngine] ✅ Transcript chunk added');
-    console.log('[SessionEngine] 📊 Total chunks:', this.state.transcript.length);
-    console.log('[SessionEngine] ⏱️ Duration:', this.state.duration, 'ms');
-
+  private triggerDebouncedAnalysis() {
     this.notifyUpdate();
-    console.log('[SessionEngine] 🔔 State update notification sent');
+    
+    // Trigger debounced analysis inline
+    if (this.analysisDebounceTrigger) {
+      clearTimeout(this.analysisDebounceTrigger);
+    }
+    
+    this.analysisDebounceTrigger = setTimeout(() => {
+      if (this.state.isRecording || this.debugMode) {
+        this.analyzer.analyzeSession(this.state.transcript, this.state.duration)
+          .then((result) => this.onAnalysisResult(result))
+          .catch((err) => console.error('[SessionEngine] Analysis error:', err));
+      }
+    }, 300);
   }
 
   /**
@@ -420,6 +495,7 @@ export class SessionEngine {
    * Cleanup
    */
   cleanup(): void {
+    if (this.analysisDebounceTrigger) clearTimeout(this.analysisDebounceTrigger);
     this.analyzer.cleanup();
     this.speechService.cleanup();
     this.stopAutoSave();
@@ -457,13 +533,15 @@ export class SessionEngine {
    * Inject a single debug transcript
    */
   private injectDebugTranscript(): void {
-    if (this.debugTranscriptIndex >= DEBUG_TRANSCRIPTS.length) {
+    const activeTranscripts = DEBUG_TRANSCRIPTS[this.mode] || DEBUG_TRANSCRIPTS[NegotiationMode.CUSTOM_SCENARIO];
+
+    if (this.debugTranscriptIndex >= activeTranscripts.length) {
       console.log('[SessionEngine] 🐛 All debug transcripts injected, cycling back to start');
       this.debugTranscriptIndex = 0;
     }
 
-    const text = DEBUG_TRANSCRIPTS[this.debugTranscriptIndex];
-    console.log('[SessionEngine] 🐛 Injecting debug transcript:', text);
+    const text = activeTranscripts[this.debugTranscriptIndex];
+    console.log(`[SessionEngine] 🐛 Injecting debug transcript (${this.mode}):`, text);
 
     this.onTranscription(text, Date.now());
     this.debugTranscriptIndex++;

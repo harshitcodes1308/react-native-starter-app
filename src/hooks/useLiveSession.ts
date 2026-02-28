@@ -158,44 +158,40 @@ export const useLiveSession = (): UseLiveSessionReturn => {
                         }
 
                         // ─── Sync transcript chunks from engine to reducer ───
-                        // The engine pushes transcript chunks via this callback.
-                        // We check for new chunks and dispatch them individually.
+                        // Sync the entire array to handle mutative string concatenations (paragraph building)
                         if (engineState.transcript.length > 0) {
                             const latestChunk =
                                 engineState.transcript[engineState.transcript.length - 1];
 
-                            // Only dispatch if this is a NEW chunk (avoid duplicates from
-                            // non-transcript callback triggers like audio level updates)
-                            if (latestChunk.id !== lastDispatchedChunkIdRef.current) {
-                                lastDispatchedChunkIdRef.current = latestChunk.id;
+                            // Check if the actual text content changed, since IDs remain the same during concatenation
+                            if (latestChunk.text !== lastDispatchedChunkIdRef.current) {
+                                lastDispatchedChunkIdRef.current = latestChunk.text;
 
-                                // Dispatch the latest transcript chunk
+                                // Dispatch the synced transcript array
                                 safeDispatch({
-                                    type: 'TRANSCRIPT_CHUNK',
-                                    chunk: latestChunk,
+                                    type: 'SYNC_TRANSCRIPT',
+                                    transcript: engineState.transcript,
                                 });
-
-                                // ─── Debounced tactic analysis ───
-                                // Clear any pending analysis timer
-                                if (analysisDebounceRef.current) {
-                                    clearTimeout(analysisDebounceRef.current);
-                                }
-
-                                // Schedule analysis after 250ms pause
-                                analysisDebounceRef.current = setTimeout(() => {
-                                    if (!isLiveRef.current) return;
-
-                                    // If engine already has detected patterns, use them
-                                    if (engineState.detectedPatterns.length > 0) {
-                                        safeDispatch({
-                                            type: 'TACTIC_DETECTED',
-                                            patterns: engineState.detectedPatterns,
-                                            focusScore: engineState.currentFocusScore,
-                                            timestampMs: Date.now(),
-                                        });
-                                    }
-                                }, ANALYSIS_DEBOUNCE_MS);
                             }
+                        }
+
+                        // ─── Debounced tactic analysis ───
+                        // ALWAYS evaluate the latest intent detection patterns, regardless of string change
+                        // since intent resolution is purely asynchronous!
+                        if (engineState.detectedPatterns.length > 0) {
+                            if (analysisDebounceRef.current) {
+                                clearTimeout(analysisDebounceRef.current);
+                            }
+
+                            analysisDebounceRef.current = setTimeout(() => {
+                                if (!isLiveRef.current) return;
+                                safeDispatch({
+                                    type: 'TACTIC_DETECTED',
+                                    patterns: engineState.detectedPatterns,
+                                    focusScore: engineState.currentFocusScore,
+                                    timestampMs: Date.now(),
+                                });
+                            }, ANALYSIS_DEBOUNCE_MS);
                         }
 
                         // ─── Sync audio level ───

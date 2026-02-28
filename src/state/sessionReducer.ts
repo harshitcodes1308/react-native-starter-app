@@ -97,6 +97,7 @@ export type SessionAction =
     | { type: 'START_SESSION'; mode: NegotiationMode; startTime: number }
     | { type: 'STOP_SESSION' }
     | { type: 'TRANSCRIPT_CHUNK'; chunk: TranscriptChunk }
+    | { type: 'SYNC_TRANSCRIPT'; transcript: TranscriptChunk[] }
     | {
         type: 'TACTIC_DETECTED';
         patterns: DetectedPattern[];
@@ -110,8 +111,8 @@ export type SessionAction =
 
 // ─────────────────────────── Constants ───────────────────────────
 
-/** Minimum confidence to accept a tactic (70%) */
-const CONFIDENCE_THRESHOLD = 70;
+/** Minimum confidence to accept a tactic (45%) */
+const CONFIDENCE_THRESHOLD = 45;
 
 /** Cooldown period to prevent same-tactic spam (8 seconds) */
 const TACTIC_COOLDOWN_MS = 8000;
@@ -159,6 +160,16 @@ export const sessionReducer = (
             };
         }
 
+        // ─── Sync Transcript Array ───
+        case 'SYNC_TRANSCRIPT': {
+            if (state.status !== 'RUNNING') return state;
+            return {
+                ...state,
+                transcript: action.transcript,
+                transcriptText: action.transcript.map(c => c.text).join(' '),
+            };
+        }
+
         // ─── Tactic Detected (from debounced analysis) ───
         case 'TACTIC_DETECTED': {
             // Guard 1: ignore if session not running (prevents unmounted updates)
@@ -174,20 +185,29 @@ export const sessionReducer = (
             const newPatterns = patterns.filter((p) => !existingIds.has(p.id));
             const allPatterns = [...state.detectedPatterns, ...newPatterns];
 
-            // Sort by confidence (highest first)
-            allPatterns.sort((a, b) => b.confidenceScore - a.confidenceScore);
-
             // Mark transcript chunks that have patterns
             const updatedTranscript = state.transcript.map((chunk) => {
                 const hasPattern = newPatterns.some((p) => p.transcript === chunk.text);
                 return hasPattern ? { ...chunk, hasPattern: true } : chunk;
             });
 
-            // Get the top pattern (highest confidence)
-            const topPattern = allPatterns[0] || null;
+            // If no NEW patterns were detected on this tick, do not reset or calculate strategies.
+            // Just update the base focusScore.
+            if (newPatterns.length === 0) {
+                return {
+                    ...state,
+                    detectedPatterns: allPatterns,
+                    transcript: updatedTranscript,
+                    focusScore,
+                };
+            }
+
+            // Get the strongest pattern from the CURRENT newly analyzed audio block!
+            // We ignore allPatterns entirely here to prevent old history from overriding fresh intel.
+            newPatterns.sort((a, b) => b.confidenceScore - a.confidenceScore);
+            const topPattern = newPatterns[0] || null;
 
             if (!topPattern) {
-                // No patterns detected — just update focus score
                 return {
                     ...state,
                     detectedPatterns: allPatterns,
@@ -197,7 +217,7 @@ export const sessionReducer = (
             }
 
             console.log(
-                '[sessionReducer] 🎯 TACTIC_DETECTED:',
+                '[sessionReducer] 🎯 NEW TACTIC_DETECTED:',
                 topPattern.pattern,
                 'confidence:', topPattern.confidenceScore,
             );

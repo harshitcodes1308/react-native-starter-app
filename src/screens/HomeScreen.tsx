@@ -40,7 +40,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const handleStartSession = (mode: NegotiationMode) => {
     setShowModeSelector(false);
-    navigation.navigate('LiveSession', { mode });
+    navigation.navigate('PreSessionForm', { mode });
   };
 
   const handleSessionPress = (sessionId: string) => {
@@ -129,50 +129,65 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </LinearGradient>
 
           {/* Action Buttons */}
-          <View style={styles.actionRow}>
+          <View style={styles.actionColumn}>
+            {/* Live Tactical Mode */}
             <TouchableOpacity
-              style={styles.actionItem}
+              style={styles.actionItemLarge}
               onPress={() => setShowModeSelector(true)}
+              activeOpacity={0.8}
             >
               <LinearGradient
                 colors={['#7B61FF', '#9B82FF']}
-                style={styles.actionCircle}
+                style={styles.actionCircleLarge}
               >
-                <Text style={styles.actionIcon}>🎤</Text>
+                <Text style={styles.actionIconLarge}>🎤</Text>
               </LinearGradient>
-              <Text style={styles.actionLabel}>New Session</Text>
+              <View style={styles.actionTextContent}>
+                <Text style={styles.actionLabelLarge}>Live Tactical Mode</Text>
+                <Text style={styles.actionSubLabelLarge}>Real-time negotiation intelligence</Text>
+              </View>
             </TouchableOpacity>
 
+            {/* Strategic Outcome Replay */}
             <TouchableOpacity
-              style={styles.actionItem}
+              style={styles.actionItemLarge}
               onPress={() => {
                 if (sessions.length > 0) {
-                  handleSessionPress(sessions[0].id);
+                  navigation.navigate('OutcomeReplay', { sessionId: sessions[0].id });
                 } else {
-                  Alert.alert('No Sessions', 'Complete a session first to view insights.');
+                  Alert.alert('No Sessions', 'Complete a session first to view replays.');
                 }
               }}
+              activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#7B61FF', '#9B82FF']}
-                style={[styles.actionCircle, styles.actionCircleCenter]}
+                colors={['#10B981', '#34D399']}
+                style={styles.actionCircleLarge}
               >
-                <Text style={styles.actionIconCenter}>📊</Text>
+                <Text style={styles.actionIconLarge}>🧠</Text>
               </LinearGradient>
-              <Text style={styles.actionLabel}>Insights</Text>
+              <View style={styles.actionTextContent}>
+                <Text style={styles.actionLabelLarge}>Strategic Outcome Replay™</Text>
+                <Text style={styles.actionSubLabelLarge}>Counterfactual behavior modeling</Text>
+              </View>
             </TouchableOpacity>
 
+            {/* Practice Simulation */}
             <TouchableOpacity
-              style={styles.actionItem}
-              onPress={() => navigation.navigate('Settings')}
+              style={styles.actionItemLarge}
+              onPress={() => Alert.alert('Coming Soon', 'Practice Simulation Engine is under construction.')}
+              activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#7B61FF', '#9B82FF']}
-                style={styles.actionCircle}
+                colors={['#F59E0B', '#FBBF24']}
+                style={styles.actionCircleLarge}
               >
-                <Text style={styles.actionIcon}>⚙️</Text>
+                <Text style={styles.actionIconLarge}>⚔️</Text>
               </LinearGradient>
-              <Text style={styles.actionLabel}>Settings</Text>
+              <View style={styles.actionTextContent}>
+                <Text style={styles.actionLabelLarge}>Practice Simulation</Text>
+                <Text style={styles.actionSubLabelLarge}>Mock scenarios against AI</Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -321,8 +336,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Select Mode</Text>
-            <Text style={styles.modalSubtitle}>Choose your negotiation scenario</Text>
+            <Text style={styles.modalTitle}>Select Live Mode Category</Text>
+            <Text style={styles.modalSubtitle}>Live mode is recommended for permitted business and negotiation environments. Avoid usage where recording is restricted.</Text>
 
             <ScrollView style={styles.modesScroll}>
               {allModes.map((modeConfig: ModeConfig) => (
@@ -465,44 +480,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Action Buttons
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 36,
+  actionColumn: {
+    flexDirection: 'column',
+    gap: 16,
     marginBottom: 36,
   },
-  actionItem: {
+  actionItemLarge: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  actionCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#7B61FF',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 24,
+    elevation: 4,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    marginBottom: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
-  actionCircleCenter: {
+  actionCircleLarge: {
     width: 64,
     height: 64,
     borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 20,
   },
-  actionIcon: {
-    fontSize: 24,
-  },
-  actionIconCenter: {
+  actionIconLarge: {
     fontSize: 28,
   },
-  actionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: AppColors.textSecondary,
+  actionTextContent: {
+    flex: 1,
+  },
+  actionLabelLarge: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1A1A2E',
+    marginBottom: 4,
+  },
+  actionSubLabelLarge: {
+    fontSize: 14,
+    color: '#8B949E',
   },
 
   // Section

@@ -8,8 +8,8 @@ This app uses RunAnywhere SDK with Sherpa-ONNX Whisper for speech-to-text transc
 
 **The app will automatically download the STT model on first use!**
 
-- Model: `sherpa-onnx-whisper-tiny.en`
-- Size: ~75MB
+- Model: `sherpa-onnx-whisper-base.en`
+- Size: ~150MB
 - Download happens automatically when you first start a live session
 - Model is cached locally after download
 
@@ -38,10 +38,10 @@ await downloadAndLoadSTT();
 
 ## Model Information
 
-### Sherpa-ONNX Whisper Tiny
+### Sherpa-ONNX Whisper Base
 
-- **Model ID**: `sherpa-onnx-whisper-tiny.en`
-- **Size**: ~75MB
+- **Model ID**: `sherpa-onnx-whisper-base.en`
+- **Size**: ~150MB
 - **Format**: ONNX (tar.gz archive)
 - **Language**: English only
 - **Speed**: Very fast
@@ -75,7 +75,7 @@ await downloadAndLoadSTT();
 
 ### Download taking too long?
 
-The model is ~75MB. Download time depends on your connection:
+The model is ~150MB. Download time depends on your connection:
 
 - WiFi: 30 seconds - 2 minutes
 - 4G: 1-3 minutes
@@ -112,7 +112,7 @@ App.tsx: Initialize SDK & Register backends
     ↓
 App.tsx: Call registerDefaultModels()
     ├─ Registers LLM model
-    ├─ Registers STT model (sherpa-onnx-whisper-tiny.en)
+    ├─ Registers STT model (sherpa-onnx-whisper-base.en)
     └─ Registers TTS model
     ↓
 App.tsx: Call loadSTTModel()
@@ -158,7 +158,7 @@ Transcript returned
 [SpeechService] 🤖 Starting STT model load...
 [SpeechService] 🔍 Checking if model is downloaded...
 [SpeechService] ✅ Model already downloaded
-[SpeechService] 🔄 Loading STT model from: /data/.../sherpa-onnx-whisper-tiny.en
+[SpeechService] 🔄 Loading STT model from: /data/.../sherpa-onnx-whisper-base.en
 [SpeechService] ✅ STT model loaded successfully in XXXms
 [App] ✅ STT model ready
 ```

@@ -7,7 +7,7 @@ import { ONNX, ModelArtifactType } from '@runanywhere/onnx';
 // See: /Users/shubhammalhotra/Desktop/test-fresh/runanywhere-sdks/examples/react-native/RunAnywhereAI/App.tsx
 const MODEL_IDS = {
   llm: 'lfm2-350m-q8_0', // LiquidAI LFM2 - fast and efficient
-  stt: 'sherpa-onnx-whisper-base.en',
+  stt: 'sherpa-onnx-whisper-tiny.en',
   tts: 'vits-piper-en_US-lessac-medium',
 } as const;
 
@@ -203,8 +203,8 @@ export const ModelServiceProvider: React.FC<ModelServiceProviderProps> = ({ chil
           const RNFS = require('react-native-fs');
           const documentsDir = RNFS.DocumentDirectoryPath;
           const possiblePaths = [
-            `${documentsDir}/RunAnywhere/Models/ONNX/sherpa-onnx-whisper-tiny.en/sherpa-onnx-whisper-tiny.en`,
-            `${documentsDir}/RunAnywhere/Models/ONNX/sherpa-onnx-whisper-tiny.en`,
+            `${documentsDir}/RunAnywhere/Models/ONNX/${MODEL_IDS.stt}/${MODEL_IDS.stt}`,
+            `${documentsDir}/RunAnywhere/Models/ONNX/${MODEL_IDS.stt}`,
           ];
           
           for (const path of possiblePaths) {
@@ -400,22 +400,24 @@ export const registerDefaultModels = async () => {
     memoryRequirement: 500_000_000,
   });
   
-  // STT Model - Sherpa Whisper Base English
-  // Using tar.bz2 from official k2-fsa repo for base model
+  // STT Model - Sherpa Whisper Tiny English
+  // Using tar.gz wrapper from RunAnywhere models
+  // Fallback: wrapping github download in ghproxy CDN to prevent DNS resolution errors
+  // Update: Switching to Hugging Face directly since ISP blocks ghproxy and github.com
   await ONNX.addModel({
     id: MODEL_IDS.stt,
-    name: 'Sherpa Whisper Base (ONNX)',
-    url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.en.tar.bz2',
+    name: 'Sherpa Whisper Tiny (ONNX)',
+    url: 'https://huggingface.co/runanywhere/sherpa-onnx-whisper-tiny.en/resolve/main/sherpa-onnx-whisper-tiny.en.tar.gz',
     modality: ModelCategory.SpeechRecognition,
-    artifactType: ModelArtifactType.TarBz2Archive,
-    memoryRequirement: 150_000_000,
+    artifactType: ModelArtifactType.TarGzArchive,
+    memoryRequirement: 100_000_000,
   });
   
   // TTS Model - Piper TTS (US English - Medium quality)
   await ONNX.addModel({
     id: MODEL_IDS.tts,
     name: 'Piper TTS (US English - Medium)',
-    url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/vits-piper-en_US-lessac-medium.tar.gz',
+    url: 'https://huggingface.co/runanywhere/vits-piper-en_US-lessac-medium/resolve/main/vits-piper-en_US-lessac-medium.tar.gz',
     modality: ModelCategory.SpeechSynthesis,
     artifactType: ModelArtifactType.TarGzArchive,
     memoryRequirement: 65_000_000,
